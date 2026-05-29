@@ -10,38 +10,56 @@ import { LogOut, Plus, TrendingDown } from "lucide-react";
 
 export default function DashboardPage() {
   const [showAddForm, setShowAddForm] = useState(false);
-  const { user, checkAuth, logout } = useAuthStore();
+  
+  // 1. Properly pull 'loading' directly from the hook to make it reactive
+  const { user, loading, checkAuth, logout } = useAuthStore();
   const { fetchExpenses, fetchBudgets } = useExpenseStore();
   const router = useRouter();
 
+  // Run initial session check on mount
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
+  // Fetch data rows only if a authenticated user session exists
   useEffect(() => {
     if (user) {
       fetchExpenses();
       fetchBudgets();
     }
-  }, [user]);
+  }, [user, fetchExpenses, fetchBudgets]);
 
+  // 2. FIXED: Fully reactive redirect loop watching both 'user' and 'loading' states
   useEffect(() => {
-    if (!user && !useAuthStore.getState().loading) {
+    if (!loading && !user) {
       router.push("/auth");
     }
-  }, [user, router]);
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
-    await logout();
-    router.push("/auth");
+    try {
+      await logout();
+      router.push("/auth");
+    } catch (err) {
+      console.error("Logout redirection failed:", err);
+    }
   };
 
-  if (!user) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  // 3. Clean loading layout state that steps aside immediately when loading ends
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-400 gap-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+        <p className="text-sm font-medium tracking-wide">Loading your dashboard...</p>
+      </div>
+    );
   }
 
+  // Safety break: If no user is present, return null while the useEffect redirects
+  if (!user) return null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-100">
       {/* Header */}
       <header className="bg-slate-800/50 backdrop-blur border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -54,11 +72,17 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button onClick={() => setShowAddForm(true)} className="btn btn-primary flex items-center gap-2">
+            <button 
+              onClick={() => setShowAddForm(true)} 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow-md active:scale-95"
+            >
               <Plus size={18} />
               Add Expense
             </button>
-            <button onClick={handleLogout} className="btn btn-secondary flex items-center gap-2">
+            <button 
+              onClick={handleLogout} 
+              className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 active:scale-95"
+            >
               <LogOut size={18} />
               Logout
             </button>
@@ -69,19 +93,23 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left: Dashboard & Charts */}
+          {/* Left Block: Interactive Chart Panels */}
           <div className="lg:col-span-2">
             <Dashboard />
           </div>
 
-          {/* Right: Expenses & Form */}
+          {/* Right Block: Transaction Control Lists & Input Overlays */}
           <div className="space-y-6">
-            {showAddForm && <AddExpenseForm onClose={() => setShowAddForm(false)} />}
+            {showAddForm && (
+              <div className="border border-slate-700/60 rounded-xl p-1 bg-slate-800/20 backdrop-blur-sm animate-fade-in">
+                <AddExpenseForm onClose={() => setShowAddForm(false)} />
+              </div>
+            )}
 
-            <div className="card">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingDown size={20} />
-                <h2 className="text-xl font-bold">Recent Expenses</h2>
+            <div className="card bg-slate-800/40 p-5 border border-slate-800 rounded-2xl shadow-xl">
+              <div className="flex items-center gap-2 mb-4 border-b border-slate-700/40 pb-3">
+                <TrendingDown size={20} className="text-red-400" />
+                <h2 className="text-lg font-bold text-white">Recent Expenses</h2>
               </div>
               <ExpenseList />
             </div>

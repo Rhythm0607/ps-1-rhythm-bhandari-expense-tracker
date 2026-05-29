@@ -24,6 +24,7 @@ interface AuthStore {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -36,7 +37,7 @@ interface ExpenseStore {
   fetchBudgets: () => Promise<void>;
   addExpense: (expense: Omit<Expense, "id" | "user_id" | "created_at">) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
-  updateExpense: (id: string, updatedData: any) => Promise<void>; // Added perfectly here!
+  updateExpense: (id: string, updatedData: any) => Promise<void>;
   addBudget: (budget: Omit<Budget, "id" | "user_id" | "created_at">) => Promise<void>;
   updateBudget: (id: string, monthly_limit: number) => Promise<void>;
 }
@@ -48,20 +49,38 @@ export const useAuthStore = create<AuthStore>((set) => ({
   login: async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    set({ user: data.user });
+    set({ user: data.user, loading: false });
   },
   
   signup: async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
-    set({ user: data.user });
+    set({ user: data.user, loading: false });
   },
   
   logout: async () => {
-    await supabase.auth.signOut();
-    set({ user: null });
-    // Reload the page to clear the expense store state
-    if (typeof window !== 'undefined') window.location.reload();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error signing out:", err);
+    } finally {
+      // 1. Clear credentials cleanly without locking up the UI loading state
+      set({ user: null, loading: false });
+      
+      // 2. UPGRADE: Purge active cache lists so zero leftover data leaks out
+      useExpenseStore.setState({ expenses: [], budgets: [] });
+    }
+  },
+
+  loginWithGoogle: async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined,
+      },
+    });
+    if (error) throw error;
   },
   
   checkAuth: async () => {
@@ -117,7 +136,6 @@ export const useExpenseStore = create<ExpenseStore>((set) => ({
 
     set((state) => {
       const updatedExpenses = [...state.expenses, data];
-      // Keep expenses sorted by date, newest first
       updatedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       return { expenses: updatedExpenses };
     });
@@ -132,7 +150,6 @@ export const useExpenseStore = create<ExpenseStore>((set) => ({
 
       if (error) throw error;
 
-      // After updating the database, update the local state array so the UI changes instantly
       set((state) => ({
         expenses: state.expenses.map((expense) => 
           expense.id === id ? { ...expense, ...updatedData } : expense
