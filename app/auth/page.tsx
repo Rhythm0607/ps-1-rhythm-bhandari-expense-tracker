@@ -101,7 +101,7 @@ export default function AuthPage() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required={view !== "forgot"}
+                    required={true}
                   />
                   <button
                     type="button"
