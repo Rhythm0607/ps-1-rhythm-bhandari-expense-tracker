@@ -6,22 +6,19 @@ import { useRouter } from "next/navigation";
 import Dashboard from "@/components/Dashboard";
 import ExpenseList from "@/components/ExpenseList";
 import AddExpenseForm from "@/components/AddExpenseForm";
+import BudgetManager from "@/components/BudgetManager";
 import { LogOut, Plus, TrendingDown } from "lucide-react";
 
 export default function DashboardPage() {
   const [showAddForm, setShowAddForm] = useState(false);
-  
-  // 1. Properly pull 'loading' directly from the hook to make it reactive
   const { user, loading, checkAuth, logout } = useAuthStore();
   const { fetchExpenses, fetchBudgets } = useExpenseStore();
   const router = useRouter();
 
-  // Run initial session check on mount
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
-  // Fetch data rows only if a authenticated user session exists
   useEffect(() => {
     if (user) {
       fetchExpenses();
@@ -29,7 +26,6 @@ export default function DashboardPage() {
     }
   }, [user, fetchExpenses, fetchBudgets]);
 
-  // 2. FIXED: Fully reactive redirect loop watching both 'user' and 'loading' states
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth");
@@ -45,7 +41,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 3. Clean loading layout state that steps aside immediately when loading ends
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-slate-400 gap-3">
@@ -55,7 +50,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Safety break: If no user is present, return null while the useEffect redirects
   if (!user) return null;
 
   return (
@@ -90,22 +84,18 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content Grid Layout */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Block: Interactive Chart Panels */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          
+          {/* Left Column Workspace: Spacious Macro Analytics & Financial Targets */}
+          <div className="lg:col-span-2 space-y-6">
             <Dashboard />
+            <BudgetManager />
           </div>
 
-          {/* Right Block: Transaction Control Lists & Input Overlays */}
-          <div className="space-y-6">
-            {showAddForm && (
-              <div className="border border-slate-700/60 rounded-xl p-1 bg-slate-800/20 backdrop-blur-sm animate-fade-in">
-                <AddExpenseForm onClose={() => setShowAddForm(false)} />
-              </div>
-            )}
-
+          {/* Right Column Workspace: Isolated Dedicated Transaction Ledger */}
+          <div className="lg:col-span-1">
             <div className="card bg-slate-800/40 p-5 border border-slate-800 rounded-2xl shadow-xl">
               <div className="flex items-center gap-2 mb-4 border-b border-slate-700/40 pb-3">
                 <TrendingDown size={20} className="text-red-400" />
@@ -114,8 +104,18 @@ export default function DashboardPage() {
               <ExpenseList />
             </div>
           </div>
+
         </div>
       </main>
+
+      {/* Centered Floating Add Expense Modal Overlay Container */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md relative">
+            <AddExpenseForm onClose={() => setShowAddForm(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
